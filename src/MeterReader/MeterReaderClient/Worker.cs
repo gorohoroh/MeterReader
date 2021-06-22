@@ -40,11 +40,28 @@ namespace MeterReaderClient
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            var counter = 0;
+            
+            var customerId = _config.GetValue<int>("Service:CustomerId");
+            
             while (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
+                counter++;
 
-                var customerId = _config.GetValue<int>("Service:CustomerId");
+                if (counter % 10 == 0)
+                {
+                    Console.WriteLine("Sending Diagnostics");
+                    var stream = Client.SendDiagnostics();
+                    for (var i = 0; i < 5; i++)
+                    {
+                        var reading = await _factory.Generate(customerId);
+                        await stream.RequestStream.WriteAsync(reading);
+                    }
+
+                    await stream.RequestStream.CompleteAsync();
+                }
+                
+                _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
 
                 var pkt = new ReadingPacket
                 {
