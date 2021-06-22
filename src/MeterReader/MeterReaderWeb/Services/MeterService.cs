@@ -44,6 +44,7 @@ namespace MeterReaderWeb.Services
 
                     if (await _repository.SaveAllAsync())
                     {
+                        _logger.LogInformation($"Stored {request.Readings.Count} new readings...");
                         result.Success = ReadingStatus.Success;
                     }
 

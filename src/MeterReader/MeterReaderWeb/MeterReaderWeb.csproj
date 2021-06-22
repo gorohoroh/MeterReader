@@ -39,8 +39,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protos\enums.proto" GrpcServices="None"/>
-    <Protobuf Include="Protos\MeterReader.proto" GrpcServices="Server"/>
+    <Protobuf Include="Protos\enums.proto" GrpcServices="None" ProtoRoot="Protos\"/>
+    <Protobuf Include="Protos\MeterReader.proto" GrpcServices="Server" ProtoRoot="Protos\" />
   </ItemGroup>
 
 </Project>
