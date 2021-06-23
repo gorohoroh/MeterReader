@@ -19,6 +19,7 @@ namespace MeterReaderClient
         private MeterReadingService.MeterReadingServiceClient _client = null;
         private string _token;
         private DateTime _expiration = DateTime.MinValue;
+        private Metadata _headers;
 
         public Worker(ILogger<Worker> logger, IConfiguration config, ReadingFactory factory)
         {
@@ -41,8 +42,6 @@ namespace MeterReaderClient
             }
         }
 
-        protected bool NeedsToken() => string.IsNullOrWhiteSpace(_token) || _expiration > DateTime.UtcNow;
-
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var counter = 0;
@@ -53,18 +52,22 @@ namespace MeterReaderClient
             {
                 counter++;
 
-                // if (counter % 10 == 0)
-                // {
-                //     Console.WriteLine("Sending Diagnostics");
-                //     var stream = Client.SendDiagnostics();
-                //     for (var i = 0; i < 5; i++)
-                //     {
-                //         var reading = await _factory.Generate(customerId);
-                //         await stream.RequestStream.WriteAsync(reading);
-                //     }
-                //
-                //     await stream.RequestStream.CompleteAsync();
-                // }
+                if (counter % 3 == 0)
+                {
+                    if (await IsAuthorized())
+                    {
+                        Console.WriteLine("Sending Diagnostics");
+
+                        var stream = Client.SendDiagnostics(_headers);
+                        for (var i = 0; i < 5; i++)
+                        {
+                            var reading = await _factory.Generate(customerId);
+                            await stream.RequestStream.WriteAsync(reading);
+                        }
+
+                        await stream.RequestStream.CompleteAsync();
+                    }
+                }
                 
                 _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
 
@@ -82,11 +85,9 @@ namespace MeterReaderClient
 
                 try
                 {
-                    if (!NeedsToken() || await GenerateToken())
+                    if (await IsAuthorized())
                     {
-                        var headers = new Metadata {{"Authorization", $"Bearer {_token}"}};
-
-                        var result = await Client.AddReadingAsync(pkt, headers);
+                        var result = await Client.AddReadingAsync(pkt, _headers);
 
                         _logger.LogInformation(result.Success == ReadingStatus.Success
                             ? "Successfully sent"
@@ -104,8 +105,10 @@ namespace MeterReaderClient
             }
         }
 
-        private async Task<bool> GenerateToken()
+        private async Task<bool> IsAuthorized()
         {
+            if (!string.IsNullOrWhiteSpace(_token) && _expiration > DateTime.UtcNow) return true;
+            
             var response = await Client.CreateTokenAsync(new TokenRequest
             {
                 Username = _config["Service:Username"],
@@ -113,10 +116,10 @@ namespace MeterReaderClient
             });
 
             if (!response.Success) return false;
-
+            
             _token = response.Token;
             _expiration = response.Expiration.ToDateTime();
-
+            _headers = new Metadata {{"Authorization", $"Bearer {_token}"}};
             return true;
         }
     }
