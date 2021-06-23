@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Grpc.Core;
 using Grpc.Net.Client;
 using MeterReaderWeb.Services;
 using Microsoft.Extensions.Configuration;
@@ -75,11 +76,19 @@ namespace MeterReaderClient
                 }
 
 
-                var result = await Client.AddReadingAsync(pkt);
+                try
+                {
+                    var result = await Client.AddReadingAsync(pkt);
 
-                _logger.LogInformation(result.Success == ReadingStatus.Success
-                    ? "Successfully sent"
-                    : "Failed to send");
+                    _logger.LogInformation(result.Success == ReadingStatus.Success
+                        ? "Successfully sent"
+                        : "Failed to send");
+                }
+                catch (RpcException e)
+                {
+                    if(e.StatusCode == StatusCode.OutOfRange) _logger.LogError($"{e.Trailers}");
+                    _logger.LogError($"Exception thrown: {e}");
+                }
 
 
                 await Task.Delay(_config.GetValue<int>("Service:DelayInterval"), stoppingToken);
